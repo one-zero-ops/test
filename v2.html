@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conway's Game of Life</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .controls {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <button id="start">Start</button>
+        <button id="stop">Stop</button>
+        <button id="reset">Reset</button>
+        <input type="color" id="cellColor" placeholder="Cell Color">
+        <input type="number" id="speed" placeholder="Speed (e.g. 0.5)">
+        <input type="number" id="gridWidth" placeholder="Grid Width" value="64">
+        <input type="number" id="gridHeight" placeholder="Grid Height" value="64">
+        <input type="file" id="imageUpload" accept="image/*">
+    </div>
+    <canvas id="gameCanvas" width="640" height="640"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let width = 64;
+        let height = 64;
+        let cellSize = 10;
+        let grid = createGrid(width, height);
+        let running = false;
+        let interval;
+        let cellColor = '#000000'; // Default color
+
+        function createGrid(width, height) {
+            return Array.from({ length: height }, () => Array.from({ length: width }, () => 0));
+        }
+
+        function drawGrid() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const offsetX = (canvas.width - width * cellSize) / 2;
+            const offsetY = (canvas.height - height * cellSize) / 2;
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    ctx.fillStyle = grid[y][x] ? grid[y][x] : 'white';
+                    ctx.fillRect(offsetX + x * cellSize, offsetY + y * cellSize, cellSize, cellSize);
+                    ctx.strokeStyle = 'black'; // Set stroke color to black for grid lines
+                    ctx.strokeRect(offsetX + x * cellSize, offsetY + y * cellSize, cellSize, cellSize);
+                }
+            }
+        }
+
+        function updateGrid() {
+            const newGrid = createGrid(width, height);
+            const changes = [];
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const neighbors = countNeighbors(grid, x, y);
+                    if (grid[y][x] && (neighbors === 2 || neighbors === 3)) {
+                        newGrid[y][x] = grid[y][x];
+                    } else if (!grid[y][x] && neighbors === 3) {
+                        newGrid[y][x] = cellColor;
+                    }
+                    if (newGrid[y][x] !== grid[y][x]) {
+                        changes.push([x, y, newGrid[y][x]]);
+                    }
+                }
+            }
+            grid = newGrid;
+            drawGrid();
+        }
+
+        function countNeighbors(grid, x, y) {
+            let count = 0;
+            for (let i = -1; i <= 1; i++) {
+                for (let j = -1; j <= 1; j++) {
+                    if (i === 0 && j === 0) continue;
+                    const nx = x + i;
+                    const ny = y + j;
+                    if (nx >= 0 && ny >= 0 && nx < width && ny < height) {
+                        count += grid[ny][nx] ? 1 : 0;
+                    }
+                }
+            }
+            return count;
+        }
+
+        function startGame() {
+            if (!running) {
+                running = true;
+                interval = setInterval(updateGrid, 500);
+                document.getElementById('start').style.backgroundColor = 'red'; // Change start button color to red
+                document.getElementById('stop').style.backgroundColor = ''; // Revert stop button color
+            }
+        }
+
+        function stopGame() {
+            if (running) {
+                running = false;
+                clearInterval(interval);
+                document.getElementById('start').style.backgroundColor = ''; // Revert start button color
+                document.getElementById('stop').style.backgroundColor = 'red'; // Change stop button color to red
+            }
+        }
+
+        function resetGame() {
+            stopGame();
+            grid = createGrid(width, height);
+            drawGrid();
+            document.getElementById('start').style.backgroundColor = ''; // Revert start button color
+            document.getElementById('stop').style.backgroundColor = ''; // Revert stop button color
+        }
+
+        function toggleCell(x, y) {
+            grid[y][x] = grid[y][x] ? 0 : cellColor;
+            drawGrid();
+        }
+
+        document.getElementById('start').addEventListener('click', startGame);
+        document.getElementById('stop').addEventListener('click', stopGame);
+        document.getElementById('reset').addEventListener('click', resetGame);
+
+        document.getElementById('cellColor').addEventListener('input', (e) => {
+            cellColor = e.target.value;
+        });
+
+        document.getElementById('speed').addEventListener('input', (e) => {
+            const speed = parseFloat(e.target.value) || 1;
+            clearInterval(interval);
+            interval = setInterval(updateGrid, 1000 / speed);
+        });
+
+        document.getElementById('gridWidth').addEventListener('input', (e) => {
+            width = parseInt(e.target.value, 10) || 64;
+            canvas.width = width * cellSize;
+            grid = createGrid(width, height);
+            drawGrid();
+        });
+
+        document.getElementById('gridHeight').addEventListener('input', (e) => {
+            height = parseInt(e.target.value, 10) || 64;
+            canvas.height = height * cellSize;
+            grid = createGrid(width, height);
+            drawGrid();
+        });
+
+        document.getElementById('imageUpload').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                const img = new Image();
+                img.onload = function () {
+                    const tempCanvas = document.createElement('canvas');
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCanvas.width = width;
+                    tempCanvas.height = height;
+                    tempCtx.drawImage(img, 0, 0, width, height);
+                    const imageData = tempCtx.getImageData(0, 0, width, height);
+                    for (let y = 0; y < height; y++) {
+                        for (let x = 0; x < width; x++) {
+                            const index = (y * width + x) * 4;
+                            const r = imageData.data[index];
+                            const g = imageData.data[index + 1];
+                            const b = imageData.data[index + 2];
+                            const color = `rgb(${r}, ${g}, ${b})`;
+                            ctx.fillStyle = color;
+                            ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+                            ctx.strokeRect(x * cellSize, y * cellSize, cellSize, cellSize);
+                        }
+                    }
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor((event.clientX - rect.left) / cellSize);
+            const y = Math.floor((event.clientY - rect.top) / cellSize);
+            toggleCell(x, y);
+        });
+
+        canvas.width = width * cellSize;
+        canvas.height = height * cellSize;
+        drawGrid();
+    </script>
+</body>
+</html>
